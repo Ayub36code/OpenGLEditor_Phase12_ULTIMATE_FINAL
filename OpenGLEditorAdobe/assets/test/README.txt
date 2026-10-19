@@ -1,0 +1,1 @@
+Place test images here: test.png, photo.jpg etc.

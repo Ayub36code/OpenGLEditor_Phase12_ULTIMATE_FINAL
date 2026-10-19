@@ -1,0 +1,95 @@
+
+cmake_minimum_required(VERSION 3.20)
+project(OpenGLEditorPro VERSION 2.0.0 LANGUAGES CXX C)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+include(FetchContent)
+
+# GLFW
+FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.3.9)
+FetchContent_MakeAvailable(glfw)
+
+# GLAD2
+FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT_TAG v2.0.8 SOURCE_SUBDIR cmake)
+FetchContent_MakeAvailable(glad)
+add_library(glad_gl_core_46 STATIC)
+# We'll use local glad loader instead - create simple glad
+# For simplicity, we use FetchContent for glad2 generator? We'll create a minimal glad.c via custom
+
+# GLM
+FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 0.9.9.8)
+FetchContent_MakeAvailable(glm)
+
+# ImGui
+FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.90.5)
+FetchContent_MakeAvailable(imgui)
+add_library(imgui_lib STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+target_include_directories(imgui_lib PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui_lib PUBLIC glfw)
+
+# STB headers
+FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
+FetchContent_MakeAvailable(stb)
+
+file(GLOB_RECURSE EDITOR_SRC
+    src/core/*.cpp
+    src/graphics/*.cpp
+    src/editor/*.cpp
+    src/media/*.cpp
+)
+
+# Create glad loader file if not exists
+set(GLAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad)
+if(NOT EXISTS ${GLAD_DIR}/include/glad/gl.h)
+    file(MAKE_DIRECTORY ${GLAD_DIR}/include/glad)
+    file(MAKE_DIRECTORY ${GLAD_DIR}/src)
+    # Minimal glad header - we'll generate via python if needed
+endif()
+
+add_executable(OpenGLEditorPro
+    src/main.cpp
+    ${EDITOR_SRC}
+    third_party/glad/src/gl.c
+)
+
+target_include_directories(OpenGLEditorPro PRIVATE
+    include
+    ${glm_SOURCE_DIR}
+    ${stb_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+    third_party/glad/include
+    third_party/stb
+)
+
+target_link_libraries(OpenGLEditorPro PRIVATE
+    glfw
+    imgui_lib
+    glm::glm
+)
+
+# Copy assets and shaders
+add_custom_command(TARGET OpenGLEditorPro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:OpenGLEditorPro>/shaders
+)
+add_custom_command(TARGET OpenGLEditorPro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:OpenGLEditorPro>/assets
+)
+
+# For Windows, copy dlls etc
+if(WIN32)
+    target_link_libraries(OpenGLEditorPro PRIVATE opengl32)
+endif()
+
+# Enable all pro features
+target_compile_definitions(OpenGLEditorPro PRIVATE EDITOR_PRO=1 ADOBE_LEVEL_FEATURES=1)
